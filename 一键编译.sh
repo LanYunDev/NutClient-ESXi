@@ -86,15 +86,15 @@ fi
 
 # 检查当前目录是否为NutClient-ESXi目录
 if [ "$(basename "$(pwd)")" = "NutClient-ESXi" ]; then
-    echo "当前目录为 NutClient-ESXi 目录."
+    echo "⚙️ 当前目录为 NutClient-ESXi 目录."
 else
     # 检查当前目录下是否有名为 NutClient-ESXi 目录
     if [ -d "NutClient-ESXi" ]; then
-        echo "当前目录下存在 NutClient-ESXi 目录."
+        echo "⚙️ 当前目录下存在 NutClient-ESXi 目录."
         echo "⚙️ 进入NutClient-ESXi目录"
         cd NutClient-ESXi || exit 1
     else
-        echo "当前目录下不存在 NutClient-ESXi 目录."
+        echo "⚙️ 当前目录下不存在 NutClient-ESXi 目录."
         while true; do
           read -r -p "⚙️ 是否(y/n)在当前目录拉取项目?" flag || true # 看似有的选,实际没得选.😂
           # echo ""
@@ -106,8 +106,8 @@ else
                   echo "✅Git clone 拉取成功！"
                   break
                else
-                  echo "Git clone 拉取失败，请检查链接和网络连接。"
-                  read -r -p "是否继续尝试拉取？(y/n): " choice || true
+                  echo "❌ Git clone 拉取失败，请检查链接和网络连接。"
+                  read -r -p "⚙️ 是否继续尝试拉取？(y/n): " choice || true
                   echo ""
                   if [ "$choice" != "y" ]; then
                      break
@@ -196,6 +196,14 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
     fi
 else
     echo "⚠️ 当前目录不是一个Git项目.将不支持后续自动更新."
+    echo "⚙️ 项目: https://github.com/LanYunDev/NutClient-ESXi"
+    while true; do
+        read -r -p "⚙️ 你是否(y/n)知晓?" flag || true
+        if [[ $flag == y ]]; then
+            flag="" # 重置变量
+            break  # 输入为"y"时，结束循环♻️
+        fi
+    done
     # exit 1
 fi
 
@@ -217,10 +225,21 @@ echo "⚙️ 清除无用内容" && rm -rf ./patches/smtptools*
 if git remote -v | grep -q "github.com/LanYunDev"; then
     if [[ ! -f ./notify.sh ]]; then
         cp -v ./notify.sh.template ./notify.sh
-        echo "⚙️ 请手动修改notify.sh文件中MAIL_IP变量"
-        echo "⚠️ 若没有配置MAIL_IP变量,将只有基础(无邮件)功能."
+        read -r -p "请输入MAIL_IP变量的值: " MAIL_IP
+        sed -i -e "s/MAIL_IP=\"\"/MAIL_IP=\"${MAIL_IP}\"/g" "./notify.sh"
+        # echo "⚙️ 请手动修改notify.sh文件中MAIL_IP变量"
+        if grep -q 'MAIL_IP=""' "./notify.sh"; then
+            echo '⚠️ 未检测到MAIL_IP变量的值!'
+            echo "⚠️ 若没有配置MAIL_IP变量,将只有基础(无邮件)功能."
+        fi
     else
         echo "⚙️ 检测到已存在notify.sh文件📃"
+        if grep -q 'MAIL_IP=""' "./notify.sh"; then
+            echo '⚠️ 未检测到MAIL_IP变量的值!'
+            echo "⚠️ 若没有配置MAIL_IP变量,将只有基础(无邮件)功能."
+            read -r -p "请输入MAIL_IP变量的值: " MAIL_IP
+            sed -i -e "s/MAIL_IP=\"\"/MAIL_IP=\"${MAIL_IP}\"/g" "./notify.sh"
+        fi
         if ${version_latest} ; then
             echo "⚙️ 当前为最新版,已跳过覆盖."
         else
@@ -259,17 +278,10 @@ else
     echo "⚙️ 请手动修改./skeleton/opt/nut/bin/notify.sh文件📃"
 fi
 
-while true; do
-    read -r -p "⚙️ 修改是否(y/n)完成?" flag || true
-    # echo ""
-    if [[ $flag == y ]]; then
-        (cp -f -v ./notify.sh ./skeleton/opt/nut/bin/notify.sh && echo "✅notify.sh覆盖成功") || echo "⚠️ notify.sh覆盖失败☹️"
-        (cp -f -v ./notify_extension.sh ./skeleton/opt/nut/bin/notify_extension.sh && echo "✅notify_extension.sh添加成功") || (echo "⚠️ notify_extension.sh添加失败☹️" && echo "⚠️ 请确保notify_extension.sh在目录下" && exit 1)
-        echo "⚙️ 修改已完成✅"
-        flag="" # 重置变量
-        break  # 输入为"y"时，结束循环♻️
-    fi
-done
+echo "⚙️ 开始处理修改"
+(cp -f -v ./notify.sh ./skeleton/opt/nut/bin/notify.sh && echo "✅notify.sh覆盖成功") || echo "⚠️ notify.sh覆盖失败☹️"
+(cp -f -v ./notify_extension.sh ./skeleton/opt/nut/bin/notify_extension.sh && echo "✅notify_extension.sh添加成功") || (echo "⚠️ notify_extension.sh添加失败☹️" && echo "⚠️ 请确保notify_extension.sh在目录下" && exit 1)
+echo "⚙️ 修改已完成✅"
 
 echo '⚙️ 开始编译!'
 echo "⚠️ 注: 单线程编译花费时间较长"
@@ -340,6 +352,17 @@ echo "详细用法可见博客: https://lanyundev.com/"
 #     fi
 # done
 
+# while true; do
+#     read -r -p "⚙️ 修改是否(y/n)完成?" flag || true
+#     # echo ""
+#     if [[ $flag == y ]]; then
+#         (cp -f -v ./notify.sh ./skeleton/opt/nut/bin/notify.sh && echo "✅notify.sh覆盖成功") || echo "⚠️ notify.sh覆盖失败☹️"
+#         (cp -f -v ./notify_extension.sh ./skeleton/opt/nut/bin/notify_extension.sh && echo "✅notify_extension.sh添加成功") || (echo "⚠️ notify_extension.sh添加失败☹️" && echo "⚠️ 请确保notify_extension.sh在目录下" && exit 1)
+#         echo "⚙️ 修改已完成✅"
+#         flag="" # 重置变量
+#         break  # 输入为"y"时，结束循环♻️
+#     fi
+# done
 
 
 
