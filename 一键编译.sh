@@ -134,6 +134,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
         cp -f ./Makefile ./Makefile.tmp
         cp -f ./Makefile.bak ./Makefile
         rm -f ./skeleton/opt/nut/bin/notify.sh
+        # sed -i -e "s#/opt/nut/bin/notify.sh;poweroff#poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
     fi
     # 获取当前分支的名称
     current_branch=$(git symbolic-ref --short HEAD 2>/dev/null)
@@ -182,6 +183,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
         if [ -f ./Makefile.tmp ]; then
             # cp -f ./Makefile ./Makefile.bak # 更新Makefile.bak文件
             cp -f ./Makefile.tmp ./Makefile # 恢复修改的Makefile文件
+            # sed -i -e "s#poweroff#/opt/nut/bin/notify.sh;poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
             rm -rf ./Makefile.tmp # 删除临时文件
             rm -rf ./Makefile.bak # 删除Makefile.bak文件,重新解析.
         fi
@@ -189,6 +191,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
         # 恢复修改的Makefile文件
         if [ -f ./Makefile.tmp ]; then
             cp -f ./Makefile.tmp ./Makefile
+            # sed -i -e "s#poweroff#/opt/nut/bin/notify.sh;poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
             rm -rf ./Makefile.tmp
         fi
         version_latest=true
@@ -215,6 +218,7 @@ if [ ! -f ./Makefile.bak ]; then
     sed -i -e "s/payload: nut-bin smtptools-bin/payload: nut-bin/g;s/shell uname -i/shell uname -m/g; /smtp/s/^[^#]/#&/" "Makefile"
     sed -i -e "s#tar -xf nut-\$(NUT_VERSION).tar.gz#&\
      ; sed -i -e \"s/on line power/已连接电源/g;s/UPS %s on battery/UPS %s 正使用电池供电/g;s/UPS %s battery is low/UPS %s 电池电量低/g;s/UPS %s: forced shutdown in progress/UPS %s: 正在进行强制关机/g;s/Communications with UPS %s established/已建立与 UPS %s 的通信/g;s/Communications with UPS %s lost/与 UPS %s 的通信丢失/g;s/Auto logout and shutdown proceeding/自动注销并进行关机/g;s/UPS %s battery needs to be replaced/UPS %s 需要更换电池/g;s/UPS %s is unavailable/UPS %s 不可用/g;s/upsmon parent process died - shutdown impossible/upsmon 父进程已停止 - 无法进行关机/g;s/UPS %s: calibration in progress/UPS %s：正在进行校准/g\" \"./nut-\$(NUT_VERSION)/clients/upsmon.h\"#" 'Makefile'
+    # sed -i -e "s#poweroff#/opt/nut/bin/notify.sh;poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
 else
     echo "⚙️ 检测到Makefile.bak文件📃"
     echo "⚙️ 跳过对Makefile文件的处理"

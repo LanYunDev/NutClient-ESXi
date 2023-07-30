@@ -7,7 +7,8 @@ MAIL_IP=""
 
 # 存储延迟关机的进程ID（PID）文件路径
 SHUDOWN_PID_FILE="/var/run/ups_shutdown.pid"
-Battery_Charge_Low="35" # 低电量设定,UPS低于此电量,执行关机
+# Battery_Charge_Low="35" # 低电量手动设定,UPS低于此电量,执行关机. 更新:没法,低电量模式直接发FSD信号,手动配置无效
+# ONBATT_DELAY_SET="10" # 自定义延迟关机设置
 
 # 通知配置部分：定义了一些通知相关的配置选项，包括UPS的列表、最小UPS在线数量、在断电后延迟关机的时间、是否发送邮件以及收件人地址
 . /opt/nut/etc/notify.conf
@@ -43,13 +44,12 @@ if [[ ${MINSUPPLIES} == 1 ]]; then # 仅限单设备
   Ups_Timer_Reboot=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.reboot) # UPS重启计时器
   Ups_Timer_Shutdown=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.shutdown) # UPS关闭计时器
 fi
-if [ "${NOTIFYTYPE}" = "ONBATT" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "SHUTDOWN" ] || [ "${NOTIFYTYPE}" = "FSD" ]; then
+# if [ "${NOTIFYTYPE}" = "ONBATT" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "SHUTDOWN" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "FSD" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ]; then
+# if [ "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] && [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
+if [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
   (
     ssh root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
-    "bash /root/ups/All_Poweroff.sh" # 这个sh文件主要来关闭一些没有open-vm-tools工具的虚拟机,也就是没法自动关闭的虚拟机
-    sleep "${ONBATT_DELAY}"
-    rm "${SHUDOWN_PID_FILE}" # 先移除延迟关机的PID文件，以免后续的操作再次触发延迟关机
-    /opt/nut/sbin/upsmon -c fsd # 强制关机
+    "bash /root/ups/All_Poweroff.sh" # 这个sh文件主要来关闭一些没有open-vm-tools工具的虚拟机,也就是没法自动关闭的虚拟机,让它们提前关机
     exit 0
   ) &
   echo $! > "${SHUDOWN_PID_FILE}" # 将子shell的PID写入到延迟关机的PID文件中，以便后续可以通过该PID找到并取消延迟关机
@@ -157,10 +157,13 @@ DATE_SMTP="${DATE} ${DAY_OF_WEEK_ZH}"
 ) | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
 "mail -s 'UPS 事件 on ${HOSTNAME}' ${TO}"
 
-{
-  sh /opt/nut/bin/notify_extension.sh | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
-  "mail -s '主机主要信息 on ${HOSTNAME}' ${TO}"
-}&
+if [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "FSD" ]; then
+  {
+    sh /opt/nut/bin/notify_extension.sh | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+    "mail -s '主机主要信息 on ${HOSTNAME}' ${TO}"
+  }&
+fi
+
 
 exit 0
 
