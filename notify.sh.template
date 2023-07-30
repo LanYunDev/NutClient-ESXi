@@ -158,7 +158,7 @@ DATE_SMTP="${DATE} ${DAY_OF_WEEK_ZH}"
 "mail -s 'UPS 事件 on ${HOSTNAME}' ${TO}"
 
 {
-  sh /opt/nut/etc/notify_extension.sh | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+  sh /opt/nut/bin/notify_extension.sh | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
   "mail -s '主机主要信息 on ${HOSTNAME}' ${TO}"
 }&
 
