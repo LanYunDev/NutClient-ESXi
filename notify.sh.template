@@ -1,0 +1,222 @@
+#!/bin/sh
+# Rene GARCIA (rene@margar.fr)
+# 在 ups 事件中执行的脚本
+
+# 发送邮件IP地址
+MAIL_IP=""
+
+# 存储延迟关机的进程ID（PID）文件路径
+SHUDOWN_PID_FILE="/var/run/ups_shutdown.pid"
+Battery_Charge_Low="35" # 低电量设定,UPS低于此电量,执行关机
+
+# 通知配置部分：定义了一些通知相关的配置选项，包括UPS的列表、最小UPS在线数量、在断电后延迟关机的时间、是否发送邮件以及收件人地址
+. /opt/nut/etc/notify.conf
+
+# 存储 UPS 设备在线数
+NB_UPS_ONLINE=$(for UPS in ${UPS_LIST}; do /opt/nut/bin/upsc "${UPS}" ups.status; done | grep -c OL)
+
+if [ ! "${MAIL_IP}" ] ; then # 未配置发送邮件IP地址
+  if [ "${NOTIFYTYPE}" = "ONBATT" -a "${NB_UPS_ONLINE}" -lt "${MINSUPPLIES}" -a "${ONBATT_DELAY}" -gt 0 ]
+  then
+    if [ ! -f "${SHUDOWN_PID_FILE}" ]
+    then
+      (
+        sleep "${ONBATT_DELAY}"; rm "${SHUDOWN_PID_FILE}"; /opt/nut/sbin/upsmon -c fsd
+        exit 0
+      ) &
+      echo $! > "${SHUDOWN_PID_FILE}" # 将子shell的PID写入到延迟关机的PID文件中，以便后续可以通过该PID找到并取消延迟关机
+    fi
+  fi
+  if [ \( "${NB_UPS_ONLINE}" -ge "${MINSUPPLIES}" -o "${NOTIFYTYPE}" = "SHUTDOWN" \) -a -f "${SHUDOWN_PID_FILE}" ]
+  then
+    kill $(cat "${SHUDOWN_PID_FILE}"); rm "${SHUDOWN_PID_FILE}"
+  fi
+  exit 0;
+fi
+
+if [[ ${MINSUPPLIES} == 1 ]]; then # 仅限单设备
+  BATTERY_CHARGE=$(/opt/nut/bin/upsc "${UPS_LIST}" battery.charge) # 获取battery.charge的值
+  BATTERY_Runtime=$(/opt/nut/bin/upsc "${UPS_LIST}" battery.runtime) # 能够供应设备持续工作的时间
+  Input_Voltage=$(/opt/nut/bin/upsc "${UPS_LIST}" input.voltage) # 当前输入电压
+  UPS_Delay_Shutdown=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.delay.shutdown) # UPS延迟关闭时间
+  Ups_Load=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.load) # UPS的负载
+  Ups_Timer_Reboot=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.reboot) # UPS重启计时器
+  Ups_Timer_Shutdown=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.shutdown) # UPS关闭计时器
+fi
+if [ "${NOTIFYTYPE}" = "ONBATT" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "SHUTDOWN" ] || [ "${NOTIFYTYPE}" = "FSD" ]; then
+  (
+    ssh root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+    "bash /root/ups/All_Poweroff.sh" # 这个sh文件主要来关闭一些没有open-vm-tools工具的虚拟机,也就是没法自动关闭的虚拟机
+    sleep "${ONBATT_DELAY}"
+    rm "${SHUDOWN_PID_FILE}" # 先移除延迟关机的PID文件，以免后续的操作再次触发延迟关机
+    /opt/nut/sbin/upsmon -c fsd # 强制关机
+    exit 0
+  ) &
+  echo $! > "${SHUDOWN_PID_FILE}" # 将子shell的PID写入到延迟关机的PID文件中，以便后续可以通过该PID找到并取消延迟关机
+fi
+
+# 在电池电量不足的情况下延迟关机
+# 如果当前通知类型（NOTIFYTYPE）是"ONBATT"（表示UPS刚刚进入了电池供电模式）且在线UPS数量小于MINSUPPLIES（最小在线UPS数量），同时ONBATT_DELAY（延迟关机时间）大于0
+if [ "${NOTIFYTYPE}" = "ONBATT" -a "${NB_UPS_ONLINE}" -lt "${MINSUPPLIES}" -a "${ONBATT_DELAY}" -gt 0 ]
+then
+  if [ ! -f "${SHUDOWN_PID_FILE}" ]
+  then
+    (
+      # seconds to wait
+      sleep "${ONBATT_DELAY}"
+      rm "${SHUDOWN_PID_FILE}" # 先移除延迟关机的PID文件，以免后续的操作再次触发延迟关机
+      /opt/nut/sbin/upsmon -c fsd # 强制关机
+      exit 0
+    ) &
+    echo $! > "${SHUDOWN_PID_FILE}" # 将子shell的PID写入到延迟关机的PID文件中，以便后续可以通过该PID找到并取消延迟关机
+  fi
+fi
+
+# 中止延迟关机部分：如果当前通知类型是"SHUTDOWN"（表示请求立即关机），或者在线UPS数量大于等于MINSUPPLIES（达到最小在线UPS数量），同时延迟关机的PID文件存在
+if [ \( "${NB_UPS_ONLINE}" -ge "${MINSUPPLIES}" -o "${NOTIFYTYPE}" = "SHUTDOWN" \) -a -f "${SHUDOWN_PID_FILE}" ]
+then
+  kill $(cat "${SHUDOWN_PID_FILE}")
+  rm "${SHUDOWN_PID_FILE}"
+fi
+
+# End here if no mail to send
+[ "${SEND_MAIL}" = 1 ] || exit 0
+
+# Send an email
+DOMAIN="$(hostname -d)"
+FROM="$(hostname -s)@${DOMAIN}"
+FROMHEADER="${FROM} (ESXi on $(hostname -s))"
+[ -z "${TO}" ] && TO="root@${DOMAIN}"
+HOSTNAME="`hostname`"
+MESSAGE="$1"
+# DATE="`date +"%d/%m/%Y %k:%M:%S %Z"`"
+# DATE_SMTP="`date --rfc-2822`"
+
+# 函数：将时间戳转换为格式化的日期时间字符串
+function format_date() {
+    local timestamp=$1
+    echo "$(date -d "@${timestamp}" +"%Y年%m月%d日 %H:%M:%S CST")"
+}
+# 获取当前时间的时间戳（秒）
+current_timestamp=$(date -u +%s)
+# 转换成CST的时间戳（加8小时）
+cst_timestamp=$((current_timestamp + 8 * 3600))
+# 获取CST日期时间字符串
+DATE=$(format_date $cst_timestamp)
+# 获取CST星期几的英文字符串
+DAY_OF_WEEK=$(date -d "@${cst_timestamp}" +"%A")
+# 将CST星期几的英文字符串转换成对应的中文
+case "$DAY_OF_WEEK" in
+    "Monday")    DAY_OF_WEEK_ZH="星期一";;
+    "Tuesday")   DAY_OF_WEEK_ZH="星期二";;
+    "Wednesday") DAY_OF_WEEK_ZH="星期三";;
+    "Thursday")  DAY_OF_WEEK_ZH="星期四";;
+    "Friday")    DAY_OF_WEEK_ZH="星期五";;
+    "Saturday")  DAY_OF_WEEK_ZH="星期六";;
+    "Sunday")    DAY_OF_WEEK_ZH="星期日";;
+    *)           DAY_OF_WEEK_ZH="";;
+esac
+# 将中文星期几添加到日期时间字符串中
+DATE_SMTP="${DATE} ${DAY_OF_WEEK_ZH}"
+
+# 根据 NOTIFYTYPE 的值赋值给 MESSAGE_ZH 变量
+# case "$NOTIFYTYPE" in
+#     "ONLINE") MESSAGE_ZH="UPS已连接到电力并正常工作。";;
+#     "ONBATT") MESSAGE_ZH="UPS正在使用电池供电。";;
+#     "LOWBATT") MESSAGE_ZH="UPS电池电量低。";;
+#     "FSD") MESSAGE_ZH="UPS声明有故障或需要关机。";;
+#     "COMMOK") MESSAGE_ZH="与UPS的通信正常。";;
+#     "COMMBAD") MESSAGE_ZH="与UPS的通信故障。";;
+#     "SHUTDOWN") MESSAGE_ZH="UPS需要关机。";;
+#     "REPLBATT") MESSAGE_ZH="需要更换UPS电池。";;
+#     "NOCOMM") MESSAGE_ZH="与UPS失去通信。";;
+#     "NOPARENT") MESSAGE_ZH="未能找到父设备。";;
+#     *) MESSAGE_ZH="未知通知类型。";;
+# esac
+
+(
+  echo "来自: ${FROMHEADER}"
+  echo "日期: ${DATE_SMTP}"
+  echo "发给: 管理 <${TO}>"
+  echo "主题: UPS 通知 ${NOTIFYTYPE}"
+  echo ""
+  echo "$DATE - UPS 事件 on ${HOSTNAME} : ${MESSAGE}"
+  if [[ ${MINSUPPLIES} == 1 ]]; then
+    echo "电池当前电量: ${BATTERY_CHARGE} %"
+    echo "电池可持续工作时间: ${BATTERY_Runtime} 秒 约等于 $((${BATTERY_Runtime}/60)) 分钟"
+    echo "当前输入电压: ${Input_Voltage} V"
+    echo "UPS延迟关闭时间: ${UPS_Delay_Shutdown} 秒"
+    echo "UPS的负载: ${Ups_Load}"
+    echo "UPS重启计时器: ${Ups_Timer_Reboot} 秒"
+    echo "UPS关闭计时器: ${Ups_Timer_Shutdown} 秒"
+  fi
+  echo "获取 UPS 相关信息:"
+  echo "$(for UPS in ${UPS_LIST}; do /opt/nut/bin/upsc "${UPS}"; done)"
+  # 输出 MESSAGE_ZH 变量的值
+  # echo "消息含义(中文)：${MESSAGE_ZH}"
+) | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+"mail -s 'UPS 事件 on ${HOSTNAME}' ${TO}"
+
+{
+  sh /opt/nut/etc/notify_extension.sh | ssh -T root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+  "mail -s '主机主要信息 on ${HOSTNAME}' ${TO}"
+}&
+
+exit 0
+
+
+
+# 存档代码
+
+# # 获取当前UTC时间戳（秒）
+# utc_timestamp=$(date -u +%s)
+# # 计算中国标准时间（CST）的时间戳（秒），CST = UTC + 8 * 3600
+# cst_timestamp=$((utc_timestamp + 8 * 3600))
+# # 获取CST日期和时间的格式化字符串
+# DATE_SMTP=$(date -d @$cst_timestamp +"%Y年%m月%d日")
+# # 获取CST星期几的英文字符串
+# DAY_OF_WEEK=$(date -d @$cst_timestamp +"%A")
+# # 将CST星期几的英文字符串转换成对应的中文
+# case "$DAY_OF_WEEK" in
+#     "Monday")    DAY_OF_WEEK_ZH="星期一";;
+#     "Tuesday")   DAY_OF_WEEK_ZH="星期二";;
+#     "Wednesday") DAY_OF_WEEK_ZH="星期三";;
+#     "Thursday")  DAY_OF_WEEK_ZH="星期四";;
+#     "Friday")    DAY_OF_WEEK_ZH="星期五";;
+#     "Saturday")  DAY_OF_WEEK_ZH="星期六";;
+#     "Sunday")    DAY_OF_WEEK_ZH="星期日";;
+#     *)           DAY_OF_WEEK_ZH="";;
+# esac
+# # 将中文星期几和时间添加到日期时间字符串中
+# DATE_SMTP="${DATE_SMTP} ${DAY_OF_WEEK_ZH} "
+# # 获取CST时间的小时、分钟和秒的格式化字符串
+# TIME_SMTP=$(date -d @$cst_timestamp +"%H:%M:%S CST")
+# # 将时间字符串添加到日期时间字符串中
+# DATE_SMTP="${DATE_SMTP}${TIME_SMTP}"
+
+# esxcli esxcli command list
+
+# vim-cmd vmsvc/power.shutdown VMID
+# vim-cmd vmsvc/power.off VMID
+
+# esxcli vm process list
+# esxcli vm process kill --type= [soft,hard,force] --world-id= WorldNumber
+
+
+# CPU_USAGE=$(echo "$SUMMARY" | grep "overallCpuUsage" | awk -F '= ' '{print $2}' | sed 's/[^0-9]*//g')
+# COMMITTED=$(echo "$SUMMARY" | grep "  committed" | awk -F '= ' '/committed/{gsub(/[^0-9]/,"",$2); print $2}')
+
+# syslog.log: 这是 ESXi 主机的系统日志，记录了系统事件和错误信息。您应该特别关注其中的错误消息、警告和异常事件，以及关键系统组件的状态更改。
+# vmkernel.log: 这是 VMKernel 的日志，记录了 ESXi 主机的内核和虚拟化相关事件。它包含虚拟机启动、停止、迁移、资源调度、存储和网络等方面的信息。您可以在其中查找虚拟机故障、主机资源瓶颈、网络问题等。
+# hostd.log: 这是 hostd 服务的日志，用于管理 ESXi 主机。在其中可以找到主机管理任务、虚拟机管理操作（如创建、删除、克隆虚拟机等）以及 vCenter 连接信息。
+# vmkwarning.log、vmksummary.log 和 vmkeventd.log: 这些日志包含了主机的警告、概要和事件信息。它们可以帮助您了解主机的状态、警告和故障事件。
+# auth.log: 这是身份验证相关的日志，可用于追踪登录、用户活动和身份验证问题。
+
+
+
+
+
+
+
+
+
