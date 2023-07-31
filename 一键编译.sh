@@ -26,7 +26,6 @@ function set_git_config() {
     git config --global "$1" "$2"
 }
 
-
 # 检查是否为root用户，非root用户可能无法访问某些文件
 if [[ $EUID -ne 0 ]]; then
    echo '⚠️ 请使用root权限运行此脚本!'
@@ -35,6 +34,7 @@ fi
 
 # 设置一个变量来存储是否为CentOS 7，默认为false
 is_centos7=false
+# 设置一个变量来存储是否为最新版，默认为false
 version_latest=false
 
 # 检查是否存在centos-release文件
@@ -125,8 +125,10 @@ else
     fi
 fi
 
+# 执行缓存清理,避免错误.
 (echo '⚙️ 清理缓存' && make clean) || make clean
 
+# 判断是否为Git仓库
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
     echo "⚙️ 检查更新ing"
     # 恢复原始Makefile文件
@@ -226,6 +228,7 @@ fi
 
 echo "⚙️ 清除无用内容" && rm -rf ./patches/smtptools*
 
+# 判断是否为本人的仓库
 if git remote -v | grep -q "github.com/LanYunDev"; then
     if [[ ! -f ./notify.sh ]]; then
         cp -v ./notify.sh.template ./notify.sh
@@ -301,6 +304,14 @@ echo "详细用法可见博客: https://lanyundev.com/"
 
 
 
+
+
+
+
+
+
+
+
 # echo "测试1"$flag && exit 0
 
 # 废弃代码:
@@ -367,17 +378,6 @@ echo "详细用法可见博客: https://lanyundev.com/"
 #         break  # 输入为"y"时，结束循环♻️
 #     fi
 # done
-
-
-
-
-
-
-
-
-
-
-
 
 
 

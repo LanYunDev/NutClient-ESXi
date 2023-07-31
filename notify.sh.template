@@ -44,16 +44,15 @@ if [[ ${MINSUPPLIES} == 1 ]]; then # 仅限单设备
   Ups_Timer_Reboot=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.reboot) # UPS重启计时器
   Ups_Timer_Shutdown=$(/opt/nut/bin/upsc "${UPS_LIST}" ups.timer.shutdown) # UPS关闭计时器
 fi
-# if [ "${NOTIFYTYPE}" = "ONBATT" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "SHUTDOWN" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "FSD" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ]; then
-# if [ "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] && [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
-if [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
-  (
-    ssh root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
-    "bash /root/ups/All_Poweroff.sh" # 这个sh文件主要来关闭一些没有open-vm-tools工具的虚拟机,也就是没法自动关闭的虚拟机,让它们提前关机
-    exit 0
-  ) &
-  echo $! > "${SHUDOWN_PID_FILE}" # 将子shell的PID写入到延迟关机的PID文件中，以便后续可以通过该PID找到并取消延迟关机
-fi
+
+# 根据事件触发执行代码,可以根据自己情况设置.
+# if [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
+#   (
+#     ssh root@${MAIL_IP} -i /etc/ssh/ssh_host_rsa_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 \
+#     "bash /root/ups/All_Poweroff.sh" # 这个sh文件主要来关闭一些没有open-vm-tools工具的虚拟机,也就是没法自动关闭的虚拟机,让它们提前关机
+#     exit 0
+#   ) &
+# fi
 
 # 在电池电量不足的情况下延迟关机
 # 如果当前通知类型（NOTIFYTYPE）是"ONBATT"（表示UPS刚刚进入了电池供电模式）且在线UPS数量小于MINSUPPLIES（最小在线UPS数量），同时ONBATT_DELAY（延迟关机时间）大于0
@@ -215,7 +214,8 @@ exit 0
 # vmkwarning.log、vmksummary.log 和 vmkeventd.log: 这些日志包含了主机的警告、概要和事件信息。它们可以帮助您了解主机的状态、警告和故障事件。
 # auth.log: 这是身份验证相关的日志，可用于追踪登录、用户活动和身份验证问题。
 
-
+# if [ "${NOTIFYTYPE}" = "ONBATT" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "SHUTDOWN" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] || [ "${NOTIFYTYPE}" = "FSD" -a "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ]; then
+# if [ "${BATTERY_CHARGE}" -lt "${Battery_Charge_Low}" ] && [ "${NOTIFYTYPE}" = "ONBATT" -o "${NOTIFYTYPE}" = "SHUTDOWN" -o "${NOTIFYTYPE}" = "FSD" ]; then
 
 
 
