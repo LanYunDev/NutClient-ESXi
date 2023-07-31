@@ -29,6 +29,7 @@ function set_git_config() {
 # 检查是否为root用户，非root用户可能无法访问某些文件
 if [[ $EUID -ne 0 ]]; then
    echo '⚠️ 请使用root权限运行此脚本!'
+   echo '⚠️ 若你担心安全问题,请审阅本脚本!'
    exit 1
 fi
 
@@ -130,7 +131,7 @@ fi
 
 # 判断是否为Git仓库
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
-    echo "⚙️ 检查更新ing"
+    echo "⚙️ 检查更新中"
     # 恢复原始文件
     if [ -f ./upsmon.conf.template.bak ]; then
         cp -f ./skeleton/opt/nut/etc/upsmon.conf.template ./upsmon.conf.template.tmp
@@ -150,7 +151,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
     base_commit=$(git merge-base "origin/$current_branch" "$current_branch")
     # 比较本地分支与远程分支的提交哈希值
     if [[ "$(git rev-parse "$current_branch")" != "$(git rev-parse "origin/$current_branch")" ]]; then
-        echo "⚙️ 开始更新ing"
+        echo "⚙️ 开始更新中"
         
         # 检查是否有冲突,这里代码,我没测试过对不对,有问题可以带上日志提issue.
         if git merge-tree "$base_commit" "origin/$current_branch" "$current_branch" | grep -q 'changed in both'; then
@@ -259,7 +260,7 @@ if git remote -v | grep -q "github.com/LanYunDev"; then
     if [[ ! -f ./shutdown.sh ]]; then
         echo "⚙️ 未检测到shutdown.sh文件📃"
         echo "⚙️ 注: 该文件可通过检查群晖CPU情况判断是否恢复供电"
-        read -r -p "⚙️ 是否(y/n)需要ESXI关机前检查群晖情况? " flag || true
+        read -r -p "⚙️ 是否(y/n)需要ESXI关机前查询群晖CPU使用情况? " flag || true
         if [[ $flag = y ]]; then
             echo '⚙️ 请在ESXI的命令行中输入vim-cmd vmsvc/getallvms'
             read -r -p "请输入群晖虚拟机对应的Vmid: " VM_ID
