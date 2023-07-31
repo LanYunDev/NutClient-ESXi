@@ -7,7 +7,7 @@ packages=("wget" "patch" "gcc" "zip" "make" "tar" "file" "git")
 # 错误处理函数
 handle_error() {
    echo ""
-   echo '⚠️ 脚本发生错误!,请检查错误,2分钟后退出...'
+   echo '⚠️ 脚本发生错误!,请手动检查错误,2分钟后退出...'
    [[ "$(uname)" == "Darwin" ]] && osascript -e 'display notification "编译脚本" with title "⚠️脚本发生错误❌~" sound name "Glass"'
    sleep 120
    exit 1
@@ -259,12 +259,21 @@ if git remote -v | grep -q "github.com/LanYunDev"; then
     if [[ ! -f ./shutdown.sh ]]; then
         echo "⚙️ 未检测到shutdown.sh文件📃"
         echo "⚙️ 注: 该文件可通过检查群晖CPU情况判断是否恢复供电"
-        read -r -t 5 -p "⚙️ 是否(y/n)需要ESXI关机前检查群晖情况? 5秒后自动跳过." flag || true
-        echo ""
+        read -r -p "⚙️ 是否(y/n)需要ESXI关机前检查群晖情况? " flag || true
         if [[ $flag = y ]]; then
             echo '⚙️ 请在ESXI的命令行中输入vim-cmd vmsvc/getallvms'
             read -r -p "请输入群晖虚拟机对应的Vmid: " VM_ID
+            echo "⚙️ 群晖CPU数值检测预值建议填100(默认),不修改默认值,直接回车即可."
+            read -r -p "请输入群晖CPU数值检测预值: " CPU_Limit
             cp -v ./shutdown.sh.template ./shutdown.sh
+            if [[ ! ${CPU_Limit} || ${CPU_Limit} = "100" ]]; then
+                echo "⚙️ 群晖CPU数值检测预值为默认100MHz"
+            else
+                echo "⚠️ 不建议调整CPU数值检测预值,有可能导致检测未及时等问题."
+                echo '⚠️ 请根据实际情况修改群晖CPU数值检测预值!'
+                echo "⚙️ 群晖CPU数值检测预值将为${CPU_Limit}MHz"
+                sed -i -e "s/CPU_Limit='100'/CPU_Limit='${CPU_Limit}'/g" "./shutdown.sh"
+            fi
             sed -i -e "s/VM_ID=''/VM_ID='${VM_ID}'/g" "./shutdown.sh"
             (cp -f -v ./skeleton/opt/nut/etc/upsmon.conf.template ./upsmon.conf.template.bak && echo "✅upsmon.conf.template备份成功") || echo "⚠️ upsmon.conf.template备份失败☹️"
             (sed -i -e "s#poweroff#/opt/nut/bin/shutdown.sh\&\&poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template" && echo '✅upsmon.conf.template文件处理成功') || (echo '⚠️ upsmon.conf.template文件处理失败☹️' && exit 1)
