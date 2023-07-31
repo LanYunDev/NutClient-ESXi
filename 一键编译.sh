@@ -131,7 +131,11 @@ fi
 # 判断是否为Git仓库
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
     echo "⚙️ 检查更新ing"
-    # 恢复原始Makefile文件
+    # 恢复原始文件
+    if [ -f ./upsmon.conf.template.bak ]; then
+        cp -f ./skeleton/opt/nut/etc/upsmon.conf.template ./upsmon.conf.template.tmp
+        cp -f ./upsmon.conf.template.bak ./skeleton/opt/nut/etc/upsmon.conf.template
+    fi
     if [ -f ./Makefile.bak ]; then
         cp -f ./Makefile ./Makefile.tmp
         cp -f ./Makefile.bak ./Makefile
@@ -157,7 +161,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
                 # 检测并设置Git账户身份
                 if ! check_git_config "user.email" || ! check_git_config "user.name"; then
                     echo '⚠️ 发现错误! 你未设置Git账户身份'
-                    read -r -t 3 -p "⚙️ 是否(y/n)自动设置Git账户身份? 5秒后自动设置." flag || true
+                    read -r -t 5 -p "⚙️ 是否(y/n)自动设置Git账户身份? 5秒后自动设置." flag || true
                     echo ""
                     if [[ $flag != n ]]; then
                         set_git_config "user.email" "anonymous@example.com"
@@ -175,26 +179,48 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
                         fi
                     fi
                 fi
-                git stash && git pull -f && git stash pop
-                bash "$(pwd)/一键编译.sh"
+                (git stash && git pull -f && git stash pop && echo "✅更新完成") || (echo '⚠️ 更新失败!☹️' && exit 1)
+                if [ -f ./Makefile.tmp ]; then
+                    rm -rf ./Makefile.tmp # 删除临时文件
+                    rm -rf ./Makefile.bak # 删除Makefile.bak文件,重新解析.
+                fi
+                if [ -f ./upsmon.conf.template.tmp ]; then
+                    rm -rf ./upsmon.conf.template.tmp
+                    rm -rf ./upsmon.conf.template.bak
+                fi
+                {
+                    echo '⚙️ 3秒后重新运行本脚本' && sleep 3
+                    bash "$(pwd)/一键编译.sh"
+                }&
+                exit 0
             }&
             exit 0
         fi
 
         (git pull -f && echo "✅更新完成") || (echo '⚠️ 更新失败!☹️' && exit 1)
         if [ -f ./Makefile.tmp ]; then
-            # cp -f ./Makefile ./Makefile.bak # 更新Makefile.bak文件
-            cp -f ./Makefile.tmp ./Makefile # 恢复修改的Makefile文件
-            # sed -i -e "s#poweroff#/opt/nut/bin/notify.sh;poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
             rm -rf ./Makefile.tmp # 删除临时文件
             rm -rf ./Makefile.bak # 删除Makefile.bak文件,重新解析.
         fi
+        if [ -f ./upsmon.conf.template.tmp ]; then
+            rm -rf ./upsmon.conf.template.tmp
+            rm -rf ./upsmon.conf.template.bak
+        fi
+        {
+            echo '⚙️ 3秒后重新运行本脚本' && sleep 3
+            bash "$(pwd)/一键编译.sh"
+        }&
+        exit 0
     else
-        # 恢复修改的Makefile文件
+        # 恢复修改的文件
         if [ -f ./Makefile.tmp ]; then
             cp -f ./Makefile.tmp ./Makefile
             # sed -i -e "s#poweroff#/opt/nut/bin/notify.sh;poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template"
             rm -rf ./Makefile.tmp
+        fi
+        if [ -f ./upsmon.conf.template.tmp ]; then
+            cp -f ./upsmon.conf.template.tmp ./skeleton/opt/nut/etc/upsmon.conf.template
+            rm -rf ./upsmon.conf.template.tmp
         fi
         version_latest=true
         echo "✅已是最新版"
@@ -212,7 +238,7 @@ else
     # exit 1
 fi
 
-# 检查是否存在Makefile.bak文件
+# 检查是否存在bak备份文件
 if [ ! -f ./Makefile.bak ]; then
     # 文件不存在
     echo "⚙️ 生成Makefile备份文件📃" && cp -v ./Makefile ./Makefile.bak
@@ -224,12 +250,45 @@ if [ ! -f ./Makefile.bak ]; then
 else
     echo "⚙️ 检测到Makefile.bak文件📃"
     echo "⚙️ 跳过对Makefile文件的处理"
-fi     
+fi
 
 echo "⚙️ 清除无用内容" && rm -rf ./patches/smtptools*
 
 # 判断是否为本人的仓库
 if git remote -v | grep -q "github.com/LanYunDev"; then
+    if [[ ! -f ./shutdown.sh ]]; then
+        echo "⚙️ 未检测到shutdown.sh文件📃"
+        echo "⚙️ 注: 该文件可通过检查群晖CPU情况判断是否恢复供电"
+        read -r -t 5 -p "⚙️ 是否(y/n)需要ESXI关机前检查群晖情况? 5秒后自动跳过." flag || true
+        echo ""
+        if [[ $flag = y ]]; then
+            echo '⚙️ 请在ESXI的命令行中输入vim-cmd vmsvc/getallvms'
+            read -r -p "请输入群晖虚拟机对应的Vmid: " VM_ID
+            cp -v ./shutdown.sh.template ./shutdown.sh
+            sed -i -e "s/VM_ID=''/VM_ID='${VM_ID}'/g" "./shutdown.sh"
+            (cp -f -v ./skeleton/opt/nut/etc/upsmon.conf.template ./upsmon.conf.template.bak && echo "✅upsmon.conf.template备份成功") || echo "⚠️ upsmon.conf.template备份失败☹️"
+            (sed -i -e "s#poweroff#/opt/nut/bin/shutdown.sh\&\&poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template" && echo '✅upsmon.conf.template文件处理成功') || (echo '⚠️ upsmon.conf.template文件处理失败☹️' && exit 1)
+        else
+            echo "⚠️ 你已跳过对shutdown.sh文件的处理"
+            echo "⚠️ 若UPS恢复供电,ESXI依然会关机"
+        fi
+    else
+        # 有shutdown.sh文件📃代表需要检查群晖CPU情况来判断恢复供电
+        if grep -q "VM_ID=''" "./shutdown.sh"; then
+            echo '⚙️ 请在ESXI的命令行中输入vim-cmd vmsvc/getallvms'
+            read -r -p "请输入群晖虚拟机对应的Vmid: " VM_ID
+            sed -i -e "s/VM_ID=''/VM_ID='${VM_ID}'/g" "./shutdown.sh"
+        fi
+        if [ ! -f ./upsmon.conf.template.bak ]; then
+            echo "⚙️ 未检测到upsmon.conf.template.bak文件📃"
+            (cp -f -v ./skeleton/opt/nut/etc/upsmon.conf.template ./upsmon.conf.template.bak && echo "✅upsmon.conf.template备份成功") || echo "⚠️ upsmon.conf.template备份失败☹️"
+            (sed -i -e "s#poweroff#/opt/nut/bin/shutdown.sh\&\&poweroff#g" "./skeleton/opt/nut/etc/upsmon.conf.template" && echo '✅upsmon.conf.template文件处理成功') || (echo '⚠️ upsmon.conf.template文件处理失败☹️' && exit 1)
+        else
+            echo "⚙️ 检测到upsmon.conf.template.bak文件📃"
+            echo "⚙️ 跳过对upsmon.conf.template文件的处理"
+        fi
+    fi
+
     if [[ ! -f ./notify.sh ]]; then
         cp -v ./notify.sh.template ./notify.sh
         read -r -p "请输入MAIL_IP变量的值: " MAIL_IP
@@ -283,10 +342,12 @@ if git remote -v | grep -q "github.com/LanYunDev"; then
 else
     echo "⚠️ 警告: 检测到并非LanYunDev的仓库"
     echo "⚙️ 请手动修改./skeleton/opt/nut/bin/notify.sh文件📃"
+    echo "⚠️ 若没有配置MAIL_IP变量,将只有基础(无邮件)功能."
 fi
 
 echo "⚙️ 开始处理修改"
 (cp -f -v ./notify.sh ./skeleton/opt/nut/bin/notify.sh && echo "✅notify.sh覆盖成功") || echo "⚠️ notify.sh覆盖失败☹️"
+(cp -f -v ./shutdown.sh ./skeleton/opt/nut/bin/shutdown.sh && echo "shutdown.sh覆盖成功") || echo "⚠️ shutdown.sh覆盖失败☹️"
 (cp -f -v ./notify_extension.sh ./skeleton/opt/nut/bin/notify_extension.sh && echo "✅notify_extension.sh添加成功") || (echo "⚠️ notify_extension.sh添加失败☹️" && echo "⚠️ 请确保notify_extension.sh在目录下" && exit 1)
 echo "⚙️ 修改已完成✅"
 
@@ -296,7 +357,8 @@ echo "⚠️ 注: 单线程编译花费时间较长"
 make # 注意,经过实测,并不支持多线程编译
 
 echo "✅编译完成"
-echo "详细用法可见博客: https://lanyundev.com/"
+echo "用法可见博客文章: https://lanyundev.com/posts/bf72347b.html"
+echo "本人仓库链接: https://github.com/LanYunDev/NutClient-ESXi"
 
 
 
@@ -310,10 +372,9 @@ echo "详细用法可见博客: https://lanyundev.com/"
 
 
 
-
+# Tips: 只保证本脚本通过shellcheck的检查,其他脚本懒得改了.
 
 # echo "测试1"$flag && exit 0
-
 # 废弃代码:
 
 # while true; do

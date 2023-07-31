@@ -64,7 +64,7 @@ for vm_info in $VMS_INFO; do
     VM_FILE=$(echo "$vm_info" | awk '{print $3 " " $4}')
     VM_GUEST_OS=$(echo "$vm_info" | awk '{print $5}')
     VM_VERSION=$(echo "$vm_info" | awk '{print $6}')
-  VM_ANNOTATION=$(echo "$vm_info" | awk '{print $7}')
+    VM_ANNOTATION=$(echo "$vm_info" | awk '{print $7}')
     # VM_ANNOTATION=$(echo "$vm_info" | awk '{$1=$2=$3=$4=$5=""; print $0}' | sed -e 's/^[ \t]*//')
 
     # 获取虚拟机电源状态
@@ -77,52 +77,51 @@ for vm_info in $VMS_INFO; do
         SUMMARY=$(vim-cmd vmsvc/get.summary $VM_ID)
 
         # 解析虚拟机摘要信息，获取所需的数据
-    CPU_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/overallCpuUsage/{gsub(/[^0-9]/,"",$2); print $2}')
-    HOST_MEMORY_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/hostMemoryUsage/{gsub(/[^0-9]/,"",$2); print $2}')
-    GUEST_MEMORY_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/guestMemoryUsage/{gsub(/[^0-9]/,"",$2); print $2}')
-    COMMITTED=$(echo "$SUMMARY" | awk -F '= ' '/  committed/{gsub(/[^0-9]/,"",$2); print $2}')
-    UNCOMMITTED=$(echo "$SUMMARY" | awk -F '= ' '/uncommitted/{gsub(/[^0-9]/,"",$2); print $2}')
-    UNSHARED=$(echo "$SUMMARY" | awk -F '= ' '/unshared/{gsub(/[^0-9]/,"",$2); print $2}')
-    IP_ADDRESS=$(echo "$SUMMARY" | grep "ipAddress" | awk -F '= ' '{print $2}' | sed 's/[^0-9\.]*//g')
+        CPU_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/overallCpuUsage/{gsub(/[^0-9]/,"",$2); print $2}')
+        HOST_MEMORY_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/hostMemoryUsage/{gsub(/[^0-9]/,"",$2); print $2}')
+        GUEST_MEMORY_USAGE=$(echo "$SUMMARY" | awk -F '= ' '/guestMemoryUsage/{gsub(/[^0-9]/,"",$2); print $2}')
+        COMMITTED=$(echo "$SUMMARY" | awk -F '= ' '/  committed/{gsub(/[^0-9]/,"",$2); print $2}')
+        UNCOMMITTED=$(echo "$SUMMARY" | awk -F '= ' '/uncommitted/{gsub(/[^0-9]/,"",$2); print $2}')
+        UNSHARED=$(echo "$SUMMARY" | awk -F '= ' '/unshared/{gsub(/[^0-9]/,"",$2); print $2}')
+        IP_ADDRESS=$(echo "$SUMMARY" | grep "ipAddress" | awk -F '= ' '{print $2}' | sed 's/[^0-9\.]*//g')
 
-    # 如果CPU_USAGE大于1024，则转换为GB
-    if [ $CPU_USAGE -ge 1024 ]; then
-        CPU_USAGE=$(awk "BEGIN {printf \"%.2f\", $CPU_USAGE / 1024}")" GHz"
-    else
-      CPU_USAGE=$CPU_USAGE" MHz"
-    fi
-    if [ $HOST_MEMORY_USAGE -ge 1024 ]; then
-        HOST_MEMORY_USAGE=$(awk "BEGIN {printf \"%.2f\", $HOST_MEMORY_USAGE / 1024}")" GB"
-    else
-      HOST_MEMORY_USAGE=$HOST_MEMORY_USAGE" MB"
-    fi
-    if [ $GUEST_MEMORY_USAGE -ge 1024 ]; then
-        GUEST_MEMORY_USAGE=$(awk "BEGIN {printf \"%.2f\", $GUEST_MEMORY_USAGE / 1024}")" GB"
-    else
-      GUEST_MEMORY_USAGE=$GUEST_MEMORY_USAGE" MB"
-    fi
-    COMMITTED=$(awk "BEGIN {printf \"%.2f\", $COMMITTED/1024/1024/1024}")
-    UNCOMMITTED=$(awk "BEGIN {printf \"%.2f\", $UNCOMMITTED/1024/1024/1024}")
-    UNSHARED=$(awk "BEGIN {printf \"%.2f\", $UNSHARED/1024/1024/1024}")
+        # 如果CPU_USAGE大于1024，则转换为GB
+        if [ $CPU_USAGE -ge 1024 ]; then
+            CPU_USAGE=$(awk "BEGIN {printf \"%.2f\", $CPU_USAGE / 1024}")" GHz"
+        else
+            CPU_USAGE=$CPU_USAGE" MHz"
+        fi
+        if [ $HOST_MEMORY_USAGE -ge 1024 ]; then
+            HOST_MEMORY_USAGE=$(awk "BEGIN {printf \"%.2f\", $HOST_MEMORY_USAGE / 1024}")" GB"
+        else
+            HOST_MEMORY_USAGE=$HOST_MEMORY_USAGE" MB"
+        fi
+        if [ $GUEST_MEMORY_USAGE -ge 1024 ]; then
+            GUEST_MEMORY_USAGE=$(awk "BEGIN {printf \"%.2f\", $GUEST_MEMORY_USAGE / 1024}")" GB"
+        else
+            GUEST_MEMORY_USAGE=$GUEST_MEMORY_USAGE" MB"
+        fi
+        COMMITTED=$(awk "BEGIN {printf \"%.2f\", $COMMITTED/1024/1024/1024}")
+        UNCOMMITTED=$(awk "BEGIN {printf \"%.2f\", $UNCOMMITTED/1024/1024/1024}")
+        UNSHARED=$(awk "BEGIN {printf \"%.2f\", $UNSHARED/1024/1024/1024}")
 
-    echo "  电源状态: 开启"
-    echo "  存储位置: $VM_FILE"
-    echo "  操作系统: $VM_GUEST_OS"
+        echo "  电源状态: 开启"
+        echo "  存储位置: $VM_FILE"
+        echo "  操作系统: $VM_GUEST_OS"
         echo "  CPU 使用:   $CPU_USAGE"
         echo "  已消耗内存: $HOST_MEMORY_USAGE  活动的内存: $GUEST_MEMORY_USAGE"
-    echo "  已使用存储: $COMMITTED GB  未使用存储: $UNCOMMITTED GB  未共享: $UNSHARED GB"
-    if [ $IP_ADDRESS ]; then
-          echo "  IPv4 地址: $IP_ADDRESS"
-    fi
+        echo "  已使用存储: $COMMITTED GB  未使用存储: $UNCOMMITTED GB  未共享: $UNSHARED GB"
+        if [ $IP_ADDRESS ]; then
+            echo "  IPv4 地址: $IP_ADDRESS"
+        fi
     else
         echo "  电源状态: 关闭"
     fi
 
-  echo "  Vmid: $VM_ID   版本: $VM_VERSION"
-  if [ $VM_ANNOTATION ]; then
+    echo "  Vmid: $VM_ID   版本: $VM_VERSION"
+    if [ $VM_ANNOTATION ]; then
         echo "  备注: $VM_ANNOTATION"
-  fi
-
+    fi
 done
 
 # 还原IFS分隔符
@@ -156,8 +155,8 @@ echo "ESXI网络信息"
 echo "IPv4 外网地址: "$(wget -qO- 4.ipw.cn)
 esxcli network ip interface ipv4 get | awk 'BEGIN{printf "%-8s %-15s %-19s %-18s %-18s %-12s %-0s\n", "名称", "IPv4地址", "子网掩码", "广播地址", "地址类型", "网关", "DHCP DNS"} NR>1{printf "%-5s %-13s %-14s %-15s %-12s %-13s %-0s\n", $1, $2, $3, $4, $5, $6, $7}'
 if [[ $(esxcli network ip interface ipv6 get | awk '$2 == "true" {print $2}') ]];then
-  esxcli network ip interface ipv6 get | awk 'BEGIN{printf "%-7s %-14s %-18s %-17s %-10s %-6s %-0s\n", "名称", "IPv6地址", "IPv6启用", "DHCPv6启用", "路由广告启用", "DHCP DNS", "网关"} NR>1{printf "%-5s %-12s %-15s %-18s %-13s %-10s %-0s\n", $1, $2, $3, $4, $5, $6, $7}'
-  echo "IPv6 外网地址: "$(wget -qO- 6.ipw.cn)
+    esxcli network ip interface ipv6 get | awk 'BEGIN{printf "%-7s %-14s %-18s %-17s %-10s %-6s %-0s\n", "名称", "IPv6地址", "IPv6启用", "DHCPv6启用", "路由广告启用", "DHCP DNS", "网关"} NR>1{printf "%-5s %-12s %-15s %-18s %-13s %-10s %-0s\n", $1, $2, $3, $4, $5, $6, $7}'
+    echo "IPv6 外网地址: "$(wget -qO- 6.ipw.cn)
 fi
 
 # 获取主要日志
@@ -184,36 +183,36 @@ for log_file in $log_files; do
         echo "===  $(basename "$log_file")  ==="
 
         # 根据日期过滤日志，并统计日志行数
-    today_logs=$(grep "^$today" "$log_file")
-    #today_logs=$(awk -v today="$today" '$1 == today' "$log_file")
-    #log_count=$(awk -v today="$today" '$1 == today' "$log_file" | wc -l)
-    log_count=$(grep "^$today" "$log_file" | wc -l)
+        today_logs=$(grep "^$today" "$log_file")
+        #today_logs=$(awk -v today="$today" '$1 == today' "$log_file")
+        #log_count=$(awk -v today="$today" '$1 == today' "$log_file" | wc -l)
+        log_count=$(grep "^$today" "$log_file" | wc -l)
 
-    # 如果今天的日志为空，则输出最近的$set_log_line日志
-    # 如果今天日志行数大于$set_log_line，则读取最近的$set_log_line条日志
+        # 如果今天的日志为空，则输出最近的$set_log_line日志
+        # 如果今天日志行数大于$set_log_line，则读取最近的$set_log_line条日志
         if [ -z "$today_logs" ]; then
-      echo "=== 今日日志为空 ==="
-      echo "=== 最近"$set_log_line"条日志 ==="
-      tail -n $set_log_line "$log_file"
+            echo "=== 今日日志为空 ==="
+            echo "=== 最近"$set_log_line"条日志 ==="
+            tail -n $set_log_line "$log_file"
         elif [ "$log_count" -gt $set_log_line ]; then
-      echo "=== 输出今日日志 ==="
-      echo "=== 最近"$set_log_line"条日志 ==="
-      tail -n $set_log_line "$log_file" | grep "^$today"
-    else
-      echo "=== 输出今日日志 ==="
-      echo "$today_logs"
+            echo "=== 输出今日日志 ==="
+            echo "=== 最近"$set_log_line"条日志 ==="
+            tail -n $set_log_line "$log_file" | grep "^$today"
+        else
+            echo "=== 输出今日日志 ==="
+            echo "$today_logs"
         fi
 
         echo "===================="
-        echo
+        echo ""
     else
         echo "未找到日志文件: $log_file"
-        echo
+        echo ""
     fi
 done
 
 {
-  # 获取当前小时数
+    # 获取当前小时数
     current_hour=$(date +%H)
     
     # 获取当前秒数并将其归一化到0到1之间
