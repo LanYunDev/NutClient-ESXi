@@ -2,7 +2,7 @@
 
 repo_url="https://github.com/LanYunDev/NutClient-ESXi.git"
 local_dir="./NutClient-ESXi"
-packages=("wget" "patch" "gcc" "zip" "make" "tar" "file" "git")
+packages=("wget" "patch" "gcc" "gcc-c++" "zip" "make" "tar" "file" "git")
 
 # 错误处理函数
 handle_error() {
@@ -12,6 +12,20 @@ handle_error() {
    sleep 120
    exit 1
 }
+
+# 定义信号处理函数，用于响应 Ctrl+C
+function handle_ctrl_c {
+    echo ""
+    echo "接收到 Ctrl+C，3秒后退出..."
+    if [[ ${upload_pace_pid} ]]; then
+        kill ${upload_pace_pid} > /dev/null 2>&1
+    fi
+    sleep 3
+    exit 1
+}
+
+# 设置信号处理程序，捕捉 SIGINT 信号（Ctrl+C）
+trap handle_ctrl_c SIGINT
 
 # 设置错误处理函数
 trap handle_error ERR
@@ -359,7 +373,7 @@ echo "⚙️ 开始处理修改"
 (cp -f -v ./notify.sh ./skeleton/opt/nut/bin/notify.sh && echo "✅notify.sh覆盖成功") || echo "⚠️ notify.sh覆盖失败☹️"
 (cp -f -v ./shutdown.sh ./skeleton/opt/nut/bin/shutdown.sh && echo "shutdown.sh覆盖成功") || echo "⚠️ shutdown.sh覆盖失败☹️"
 (cp -f -v ./notify_extension.sh ./skeleton/opt/nut/bin/notify_extension.sh && echo "✅notify_extension.sh添加成功") || (echo "⚠️ notify_extension.sh添加失败☹️" && echo "⚠️ 请确保notify_extension.sh在目录下" && exit 1)
-echo "⚙️ 修改已完成✅"
+echo "✅修改已完成"
 
 echo '⚙️ 开始编译!'
 echo "⚠️ 注: 单线程编译花费时间较长"
